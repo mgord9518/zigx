@@ -7,7 +7,7 @@ pub const SocketReader = std.io.Reader(std.os.socket_t, std.os.RecvFromError, re
 pub fn send(sock: std.os.socket_t, data: []const u8) !void {
     const sent = try x.writeSock(sock, data, 0);
     if (sent != data.len) {
-        std.log.err("send {} only sent {}\n", .{data.len, sent});
+        std.log.err("send {} only sent {}\n", .{ data.len, sent });
         return error.DidNotSendAllData;
     }
 }
@@ -27,7 +27,7 @@ pub fn connect(allocator: std.mem.Allocator) !ConnectResult {
     const display = x.getDisplay();
 
     const sock = x.connect(display) catch |err| {
-        std.log.err("failed to connect to display '{s}': {s}", .{display, @errorName(err)});
+        std.log.err("failed to connect to display '{s}': {s}", .{ display, @errorName(err) });
         std.os.exit(0xff);
     };
 
@@ -37,8 +37,8 @@ pub fn connect(allocator: std.mem.Allocator) !ConnectResult {
         x.connect_setup.serialize(&msg, 11, 0, .{ .ptr = undefined, .len = 0 }, .{ .ptr = undefined, .len = 0 });
         try send(sock, &msg);
     }
-    
-    const reader = SocketReader { .context = sock };
+
+    const reader = SocketReader{ .context = sock };
     const connect_setup_header = try x.readConnectSetupHeader(reader, .{});
     switch (connect_setup_header.status) {
         .failed => {
@@ -55,15 +55,15 @@ pub fn connect(allocator: std.mem.Allocator) !ConnectResult {
         },
         .success => {
             // TODO: check version?
-            std.log.debug("SUCCESS! version {}.{}", .{connect_setup_header.proto_major_ver, connect_setup_header.proto_minor_ver});
+            std.log.debug("SUCCESS! version {}.{}", .{ connect_setup_header.proto_major_ver, connect_setup_header.proto_minor_ver });
         },
         else => |status| {
             std.log.err("Error: expected 0, 1 or 2 as first byte of connect setup reply, but got {}", .{status});
             return error.MalformedXReply;
-        }
+        },
     }
 
-    const connect_setup = x.ConnectSetup {
+    const connect_setup = x.ConnectSetup{
         .buf = try allocator.allocWithOptions(u8, connect_setup_header.getReplyLen(), 4, null),
     };
     std.log.debug("connect setup reply is {} bytes", .{connect_setup.buf.len});
@@ -73,12 +73,12 @@ pub fn connect(allocator: std.mem.Allocator) !ConnectResult {
 }
 
 pub fn asReply(comptime T: type, msg_bytes: []align(4) u8) !*T {
-    const generic_msg = @ptrCast(*x.ServerMsg.Generic, msg_bytes.ptr);
+    const generic_msg = @as(*x.ServerMsg.Generic, @ptrCast(msg_bytes.ptr));
     if (generic_msg.kind != .reply) {
         std.log.err("expected reply but got {}", .{generic_msg});
         return error.UnexpectedReply;
     }
-    return @ptrCast(*T, generic_msg);
+    return @as(*T, @alignCast(@ptrCast(generic_msg)));
 }
 
 fn readSocket(sock: std.os.socket_t, buffer: []u8) !usize {

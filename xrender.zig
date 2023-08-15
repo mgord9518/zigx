@@ -9,10 +9,10 @@ pub const ExtOpcode = enum(u8) {
 
 pub const query_version = struct {
     pub const len =
-              2 // extension and command opcodes
-            + 2 // request length
-            + 4 // client major version
-            + 4 // client minor version
+        2 // extension and command opcodes
+    + 2 // request length
+    + 4 // client major version
+    + 4 // client minor version
     ;
     pub const Args = struct {
         major_version: u32,
@@ -20,7 +20,7 @@ pub const query_version = struct {
     };
     pub fn serialize(buf: [*]u8, ext_opcode: u8, args: Args) void {
         buf[0] = ext_opcode;
-        buf[1] = @enumToInt(ExtOpcode.query_version);
+        buf[1] = @intFromEnum(ExtOpcode.query_version);
         std.debug.assert(len & 0x3 == 0);
         x.writeIntNative(u16, buf + 2, len >> 2);
         x.writeIntNative(u32, buf + 4, args.major_version);
@@ -35,5 +35,7 @@ pub const query_version = struct {
         minor_version: u32,
         reserved: [15]u8,
     };
-    comptime { std.debug.assert(@sizeOf(Reply) == 32); }
+    comptime {
+        std.debug.assert(@sizeOf(Reply) == 32);
+    }
 };

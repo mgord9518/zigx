@@ -16,19 +16,19 @@ pub fn main() !u8 {
     const screen = blk: {
         const fixed = conn.setup.fixed();
         inline for (@typeInfo(@TypeOf(fixed.*)).Struct.fields) |field| {
-            std.log.debug("{s}: {any}", .{field.name, @field(fixed, field.name)});
+            std.log.debug("{s}: {any}", .{ field.name, @field(fixed, field.name) });
         }
         std.log.debug("vendor: {s}", .{try conn.setup.getVendorSlice(fixed.vendor_len)});
         const format_list_offset = x.ConnectSetup.getFormatListOffset(fixed.vendor_len);
         const format_list_limit = x.ConnectSetup.getFormatListLimit(format_list_offset, fixed.format_count);
-        std.log.debug("fmt list off={} limit={}", .{format_list_offset, format_list_limit});
+        std.log.debug("fmt list off={} limit={}", .{ format_list_offset, format_list_limit });
         const formats = try conn.setup.getFormatList(format_list_offset, format_list_limit);
         for (formats, 0..) |format, i| {
-            std.log.debug("format[{}] depth={:3} bpp={:3} scanpad={:3}", .{i, format.depth, format.bits_per_pixel, format.scanline_pad});
+            std.log.debug("format[{}] depth={:3} bpp={:3} scanpad={:3}", .{ i, format.depth, format.bits_per_pixel, format.scanline_pad });
         }
         var screen = conn.setup.getFirstScreenPtr(format_list_limit);
         inline for (@typeInfo(@TypeOf(screen.*)).Struct.fields) |field| {
-            std.log.debug("SCREEN 0| {s}: {any}", .{field.name, @field(screen, field.name)});
+            std.log.debug("SCREEN 0| {s}: {any}", .{ field.name, @field(screen, field.name) });
         }
         break :blk screen;
     };
@@ -42,42 +42,35 @@ pub fn main() !u8 {
             .window_id = window_id,
             .parent_window_id = screen.root,
             .depth = 0, // we don't care, just inherit from the parent
-            .x = 0, .y = 0,
-            .width = window_width, .height = window_height,
+            .x = 0,
+            .y = 0,
+            .width = window_width,
+            .height = window_height,
             .border_width = 0, // TODO: what is this?
             .class = .input_output,
             .visual_id = screen.root_visual,
         }, .{
-//            .bg_pixmap = .copy_from_parent,
+            //            .bg_pixmap = .copy_from_parent,
             .bg_pixel = 0xaabbccdd,
-//            //.border_pixmap =
-//            .border_pixel = 0x01fa8ec9,
-//            .bit_gravity = .north_west,
-//            .win_gravity = .east,
-//            .backing_store = .when_mapped,
-//            .backing_planes = 0x1234,
-//            .backing_pixel = 0xbbeeeeff,
-//            .override_redirect = true,
-//            .save_under = true,
-            .event_mask =
-                  x.event.key_press
-                | x.event.key_release
-                | x.event.button_press
-                | x.event.button_release
-                | x.event.enter_window
-                | x.event.leave_window
-                | x.event.pointer_motion
-//                | x.event.pointer_motion_hint WHAT THIS DO?
-//                | x.event.button1_motion  WHAT THIS DO?
-//                | x.event.button2_motion  WHAT THIS DO?
-//                | x.event.button3_motion  WHAT THIS DO?
-//                | x.event.button4_motion  WHAT THIS DO?
-//                | x.event.button5_motion  WHAT THIS DO?
-//                | x.event.button_motion  WHAT THIS DO?
-                | x.event.keymap_state
-                | x.event.exposure
-                ,
-//            .dont_propagate = 1,
+            //            //.border_pixmap =
+            //            .border_pixel = 0x01fa8ec9,
+            //            .bit_gravity = .north_west,
+            //            .win_gravity = .east,
+            //            .backing_store = .when_mapped,
+            //            .backing_planes = 0x1234,
+            //            .backing_pixel = 0xbbeeeeff,
+            //            .override_redirect = true,
+            //            .save_under = true,
+            .event_mask = x.event.key_press | x.event.key_release | x.event.button_press | x.event.button_release | x.event.enter_window | x.event.leave_window | x.event.pointer_motion
+            //                | x.event.pointer_motion_hint WHAT THIS DO?
+            //                | x.event.button1_motion  WHAT THIS DO?
+            //                | x.event.button2_motion  WHAT THIS DO?
+            //                | x.event.button3_motion  WHAT THIS DO?
+            //                | x.event.button4_motion  WHAT THIS DO?
+            //                | x.event.button5_motion  WHAT THIS DO?
+            //                | x.event.button_motion  WHAT THIS DO?
+            | x.event.keymap_state | x.event.exposure,
+            //            .dont_propagate = 1,
         });
         try conn.send(msg_buf[0..len]);
     }
@@ -108,15 +101,15 @@ pub fn main() !u8 {
 
     // get some font information
     {
-        const text_literal = [_]u16 { 'm' };
-        const text = x.Slice(u16, [*]const u16) { .ptr = &text_literal, .len = text_literal.len };
+        const text_literal = [_]u16{'m'};
+        const text = x.Slice(u16, [*]const u16){ .ptr = &text_literal, .len = text_literal.len };
         var msg: [x.query_text_extents.getLen(text.len)]u8 = undefined;
         x.query_text_extents.serialize(&msg, fg_gc_id, text);
         try conn.send(&msg);
     }
 
     const double_buf = try x.DoubleBuffer.init(
-        std.mem.alignForward(1000, std.mem.page_size),
+        std.mem.alignForward(usize, 1000, std.mem.page_size),
         .{ .memfd_name = "ZigX11DoubleBuffer" },
     );
     // double_buf.deinit() (not necessary)
@@ -124,14 +117,14 @@ pub fn main() !u8 {
     var buf = double_buf.contiguousReadBuffer();
 
     const font_dims: FontDims = blk: {
-        _ = try x.readOneMsg(conn.reader(), @alignCast(4, buf.nextReadBuffer()));
-        switch (x.serverMsgTaggedUnion(@alignCast(4, buf.double_buffer_ptr))) {
+        _ = try x.readOneMsg(conn.reader(), @alignCast(buf.nextReadBuffer()));
+        switch (x.serverMsgTaggedUnion(@alignCast(buf.double_buffer_ptr))) {
             .reply => |msg_reply| {
-                const msg = @ptrCast(*x.ServerMsg.QueryTextExtents, msg_reply);
+                const msg = @as(*x.ServerMsg.QueryTextExtents, @ptrCast(msg_reply));
                 break :blk .{
-                    .width = @intCast(u8, msg.overall_width),
-                    .height = @intCast(u8, msg.font_ascent + msg.font_descent),
-                    .font_left = @intCast(i16, msg.overall_left),
+                    .width = @as(u8, @intCast(msg.overall_width)),
+                    .height = @as(u8, @intCast(msg.font_ascent + msg.font_descent)),
+                    .font_left = @as(i16, @intCast(msg.overall_left)),
                     .font_ascent = msg.font_ascent,
                 };
             },
@@ -171,7 +164,7 @@ pub fn main() !u8 {
                 break;
             buf.release(msg_len);
             //buf.resetIfEmpty();
-            switch (x.serverMsgTaggedUnion(@alignCast(4, data.ptr))) {
+            switch (x.serverMsgTaggedUnion(@alignCast(data.ptr))) {
                 .err => |msg| {
                     std.log.err("{}", .{msg});
                     return 1;
@@ -240,7 +233,7 @@ fn render(sock: std.os.socket_t, drawable_id: u32, bg_gc_id: u32, fg_gc_id: u32,
         x.poly_fill_rectangle.serialize(&msg, .{
             .drawable_id = drawable_id,
             .gc_id = bg_gc_id,
-        }, &[_]x.Rectangle {
+        }, &[_]x.Rectangle{
             .{ .x = 100, .y = 100, .width = 200, .height = 200 },
         });
         try common.send(sock, &msg);
@@ -248,13 +241,16 @@ fn render(sock: std.os.socket_t, drawable_id: u32, bg_gc_id: u32, fg_gc_id: u32,
     {
         var msg: [x.clear_area.len]u8 = undefined;
         x.clear_area.serialize(&msg, false, drawable_id, .{
-            .x = 150, .y = 150, .width = 100, .height = 100,
+            .x = 150,
+            .y = 150,
+            .width = 100,
+            .height = 100,
         });
         try common.send(sock, &msg);
     }
     {
         const text_literal: []const u8 = "Hello X!";
-        const text = x.Slice(u8, [*]const u8) { .ptr = text_literal.ptr, .len = text_literal.len };
+        const text = x.Slice(u8, [*]const u8){ .ptr = text_literal.ptr, .len = text_literal.len };
         var msg: [x.image_text8.getLen(text.len)]u8 = undefined;
 
         const text_width = font_dims.width * text_literal.len;
@@ -262,8 +258,8 @@ fn render(sock: std.os.socket_t, drawable_id: u32, bg_gc_id: u32, fg_gc_id: u32,
         x.image_text8.serialize(&msg, text, .{
             .drawable_id = drawable_id,
             .gc_id = fg_gc_id,
-            .x = @divTrunc((window_width - @intCast(i16, text_width)),  2) + font_dims.font_left,
-            .y = @divTrunc((window_height - @intCast(i16, font_dims.height)), 2) + font_dims.font_ascent,
+            .x = @divTrunc((window_width - @as(i16, @intCast(text_width))), 2) + font_dims.font_left,
+            .y = @divTrunc((window_height - @as(i16, @intCast(font_dims.height))), 2) + font_dims.font_ascent,
         });
         try common.send(sock, &msg);
     }

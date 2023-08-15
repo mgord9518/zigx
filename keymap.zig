@@ -5,7 +5,7 @@ const x = @import("x.zig");
 pub fn send(sock: std.os.socket_t, data: []const u8) !void {
     const sent = try x.writeSock(sock, data, 0);
     if (sent != data.len) {
-        std.log.err("send {} only sent {}\n", .{data.len, sent});
+        std.log.err("send {} only sent {}\n", .{ data.len, sent });
         return error.DidNotSendAllData;
     }
 }
@@ -40,7 +40,7 @@ pub fn request(allocator: std.mem.Allocator, sock: os.socket_t, fixed: x.Connect
     try x.readFull(SocketReader{ .context = sock }, &header);
 
     {
-        const generic = @ptrCast(*x.ServerMsg.Generic, &header);
+        const generic = @as(*x.ServerMsg.Generic, @ptrCast(&header));
         if (generic.kind != .reply) {
             std.log.err("GetKeyboardMapping failed, expected 'reply' but got '{}': {}", .{
                 generic.kind,
@@ -50,14 +50,14 @@ pub fn request(allocator: std.mem.Allocator, sock: os.socket_t, fixed: x.Connect
         }
     }
 
-    const reply = @ptrCast(*x.ServerMsg.GetKeyboardMapping, &header);
+    const reply = @as(*x.ServerMsg.GetKeyboardMapping, @ptrCast(&header));
     const syms_len = x.readIntNative(u32, header[4..]);
-    std.debug.assert(@intCast(usize, reply.syms_per_code) * @intCast(usize, keycode_count) == syms_len);
+    std.debug.assert(@as(usize, @intCast(reply.syms_per_code)) * @as(usize, @intCast(keycode_count)) == syms_len);
 
     const syms = try allocator.alloc(u32, syms_len);
     errdefer allocator.free(syms);
 
-    try x.readFull(SocketReader{ .context = sock }, @ptrCast([*]u8, syms.ptr)[0 .. syms_len * 4]);
+    try x.readFull(SocketReader{ .context = sock }, @as([*]u8, @ptrCast(syms.ptr))[0 .. syms_len * 4]);
 
     return Keymap{
         .keycode_count = keycode_count,

@@ -12,10 +12,18 @@ const window_height = 400;
 
 const Ids = struct {
     base: u32,
-    pub fn window(self: Ids) u32 { return self.base; }
-    pub fn font(self: Ids) u32 { return self.base + 1; }
-    pub fn gcBackground(self: Ids) u32 { return self.base + 2; }
-    pub fn gcText(self: Ids) u32 { return self.base + 3; }
+    pub fn window(self: Ids) u32 {
+        return self.base;
+    }
+    pub fn font(self: Ids) u32 {
+        return self.base + 1;
+    }
+    pub fn gcBackground(self: Ids) u32 {
+        return self.base + 2;
+    }
+    pub fn gcText(self: Ids) u32 {
+        return self.base + 3;
+    }
 };
 
 pub fn main() !u8 {
@@ -24,25 +32,26 @@ pub fn main() !u8 {
     defer std.os.shutdown(conn.sock, .both) catch {};
 
     const Key = enum {
-        left, right,
+        left,
+        right,
     };
     var keycode_map = std.AutoHashMapUnmanaged(u8, Key){};
     {
         const keymap = try x.keymap.request(allocator, conn.sock, conn.setup.fixed().*);
         defer keymap.deinit(allocator);
-        std.log.info("Keymap: syms_per_code={} total_syms={}", .{keymap.syms_per_code, keymap.syms.len});
+        std.log.info("Keymap: syms_per_code={} total_syms={}", .{ keymap.syms_per_code, keymap.syms.len });
         {
             var i: usize = 0;
             var sym_offset: usize = 0;
             while (i < keymap.keycode_count) : (i += 1) {
-                const keycode = @intCast(u8, conn.setup.fixed().min_keycode + i);
+                const keycode: u8 = @intCast(conn.setup.fixed().min_keycode + i);
                 var j: usize = 0;
                 while (j < keymap.syms_per_code) : (j += 1) {
                     const sym = keymap.syms[sym_offset];
-                    if (sym == @enumToInt(x.charset.Combined.kbd_left)) {
+                    if (sym == @intFromEnum(x.charset.Combined.kbd_left)) {
                         std.log.info("keycode {} is left", .{keycode});
                         try keycode_map.put(allocator, keycode, .left);
-                    } else if (sym == @enumToInt(x.charset.Combined.kbd_right)) {
+                    } else if (sym == @intFromEnum(x.charset.Combined.kbd_right)) {
                         std.log.info("keycode {} is right", .{keycode});
                         try keycode_map.put(allocator, keycode, .right);
                     }
@@ -52,10 +61,9 @@ pub fn main() !u8 {
         }
     }
 
-
     {
         const pattern_string = "*";
-        const pattern = x.Slice(u16, [*]const u8) { .ptr = pattern_string, .len = pattern_string.len };
+        const pattern = x.Slice(u16, [*]const u8){ .ptr = pattern_string, .len = pattern_string.len };
         var msg: [x.list_fonts.getLen(pattern.len)]u8 = undefined;
         x.list_fonts.serialize(&msg, 0xffff, pattern);
         try conn.send(&msg);
@@ -81,7 +89,7 @@ pub fn main() !u8 {
         break :blk conn.setup.getFirstScreenPtr(format_list_limit);
     };
 
-    const ids = Ids { .base = conn.setup.fixed().resource_id_base };
+    const ids = Ids{ .base = conn.setup.fixed().resource_id_base };
 
     {
         var msg_buf: [x.create_window.max_len]u8 = undefined;
@@ -89,17 +97,16 @@ pub fn main() !u8 {
             .window_id = ids.window(),
             .parent_window_id = screen.root,
             .depth = 0, // don't care, inherit from the parent
-            .x = 0, .y = 0,
-            .width = window_width, .height = window_height,
+            .x = 0,
+            .y = 0,
+            .width = window_width,
+            .height = window_height,
             .border_width = 0, // TODO: what is this?
             .class = .input_output,
             .visual_id = screen.root_visual,
         }, .{
             .bg_pixel = 0xffffff,
-            .event_mask =
-                  x.event.key_press
-                | x.event.exposure
-                ,
+            .event_mask = x.event.key_press | x.event.exposure,
         });
         try conn.send(msg_buf[0..len]);
     }
@@ -138,7 +145,7 @@ pub fn main() !u8 {
 
     const double_buf = try x.DoubleBuffer.init(
         // some of the QueryFont replies are huge!
-        std.mem.alignForward(1024 * 1024, std.mem.page_size),
+        std.mem.alignForward(usize, 1024 * 1024, std.mem.page_size),
         .{ .memfd_name = "ZigX11DoubleBuffer" },
     );
     // double_buf.deinit() (not necessary)
@@ -167,19 +174,19 @@ pub fn main() !u8 {
             if (data.len < msg_len)
                 break;
             buf.release(msg_len);
-            switch (x.serverMsgTaggedUnion(@alignCast(4, data.ptr))) {
+            switch (x.serverMsgTaggedUnion(@alignCast(data.ptr))) {
                 .err => |generic_msg| {
                     var error_handled = false;
                     switch (generic_msg.code) {
                         .name => {
-                            const msg = @ptrCast(*x.ServerMsg.Error.Name, generic_msg);
+                            const msg = @as(*x.ServerMsg.Error.Name, @ptrCast(generic_msg));
                             if (msg.major_opcode == .open_font) {
                                 try state.onOpenFontError(msg);
                                 error_handled = true;
                             }
                         },
                         .font => {
-                            const msg = @ptrCast(*x.ServerMsg.Error.Font, generic_msg);
+                            const msg = @as(*x.ServerMsg.Error.Font, @ptrCast(generic_msg));
                             if (msg.major_opcode == .query_font) {
                                 try state.onQueryFontError(msg, conn.sock, ids, fonts);
                                 error_handled = true;
@@ -206,14 +213,14 @@ pub fn main() !u8 {
                         .right => @as(isize, 1),
                     } else 0;
                     if (diff != 0) {
-                        const new_font_index = @mod(@intCast(isize, state.desired_font_index) + diff, @intCast(isize, fonts.len));
-                        try state.updateDesiredFont(conn.sock, ids, fonts, @intCast(usize, new_font_index));
+                        const new_font_index = @mod(@as(isize, @intCast(state.desired_font_index)) + diff, @as(isize, @intCast(fonts.len)));
+                        try state.updateDesiredFont(conn.sock, ids, fonts, @as(usize, @intCast(new_font_index)));
                     }
                 },
                 .key_release => {}, // NOTE: still get key_release events even though we didn't ask for them
                 .expose => |msg| try state.onExpose(msg, conn.sock, ids, fonts),
                 else => {
-                    const msg = @ptrCast(*x.ServerMsg.Generic, data.ptr);
+                    const msg = @as(*x.ServerMsg.Generic, @ptrCast(data.ptr));
                     std.log.info("todo: server msg {}", .{msg});
                     return error.UnhandledServerMsg;
                 },
@@ -262,21 +269,21 @@ const State = struct {
         ids: Ids,
         fonts: []x.Slice(u8, [*]const u8),
     ) !void {
-       const open_font_index = switch (self.exposed) {
-           .no => @panic("codebug"),
-           .yes => |*exposed| switch (exposed.*) {
-               .getting_font => @panic("codebug"),
-               .idle => |info| info.open_font_index,
-           },
-       };
-       if (open_font_index) |_| {
-           // TODO: do we need to remove it from the gc??
-           var close_msg: [x.close_font.len]u8 = undefined;
-           x.close_font.serialize(&close_msg, ids.font());
-           try common.send(sock, &close_msg);
-       }
-       try openAndQueryFont(sock, ids.font(), fonts[self.desired_font_index]);
-       self.exposed = .{ .yes = .{ .getting_font = .{ .still_open = true, .font_index = self.desired_font_index } } };
+        const open_font_index = switch (self.exposed) {
+            .no => @panic("codebug"),
+            .yes => |*exposed| switch (exposed.*) {
+                .getting_font => @panic("codebug"),
+                .idle => |info| info.open_font_index,
+            },
+        };
+        if (open_font_index) |_| {
+            // TODO: do we need to remove it from the gc??
+            var close_msg: [x.close_font.len]u8 = undefined;
+            x.close_font.serialize(&close_msg, ids.font());
+            try common.send(sock, &close_msg);
+        }
+        try openAndQueryFont(sock, ids.font(), fonts[self.desired_font_index]);
+        self.exposed = .{ .yes = .{ .getting_font = .{ .still_open = true, .font_index = self.desired_font_index } } };
     }
 
     pub fn onOpenFontError(self: *State, msg: *x.ServerMsg.Error.Name) !void {
@@ -293,7 +300,8 @@ const State = struct {
         }
     }
 
-    pub fn onQueryFontError(self: *State,
+    pub fn onQueryFontError(
+        self: *State,
         msg: *x.ServerMsg.Error.Font,
         sock: std.os.socket_t,
         ids: Ids,
@@ -319,7 +327,7 @@ const State = struct {
         ids: Ids,
         fonts: []x.Slice(u8, [*]const u8),
     ) !void {
-        const msg = @ptrCast(*x.ServerMsg.QueryFont, reply_msg);
+        const msg = @as(*x.ServerMsg.QueryFont, @ptrCast(reply_msg));
         //std.log.info("{}", .{msg});
         switch (self.exposed) {
             .no => @panic("codebug"),
@@ -366,7 +374,6 @@ const State = struct {
 };
 
 fn render(sock: std.os.socket_t, ids: Ids, fonts: []x.Slice(u8, [*]const u8), font_index: usize, font_info: *const x.ServerMsg.QueryFont) !void {
-
     const font_name = fonts[font_index];
     //std.log.info("rendering font '{s}'", .{font_name});
 
@@ -375,7 +382,7 @@ fn render(sock: std.os.socket_t, ids: Ids, fonts: []x.Slice(u8, [*]const u8), fo
         x.poly_fill_rectangle.serialize(&msg, .{
             .drawable_id = ids.window(),
             .gc_id = ids.gcBackground(),
-        }, &[_]x.Rectangle {
+        }, &[_]x.Rectangle{
             .{ .x = 0, .y = 0, .width = window_width, .height = window_height },
         });
         try common.send(sock, &msg);
@@ -391,10 +398,9 @@ fn render(sock: std.os.socket_t, ids: Ids, fonts: []x.Slice(u8, [*]const u8), fo
 
     const font_height = font_info.font_ascent + font_info.font_descent;
 
-    try renderText(sock, ids.window(), ids.gcText(), 10, 10 + (font_height * 1), "font {}/{}", .{font_index+1, fonts.len});
+    try renderText(sock, ids.window(), ids.gcText(), 10, 10 + (font_height * 1), "font {}/{}", .{ font_index + 1, fonts.len });
     try renderText(sock, ids.window(), ids.gcText(), 10, 10 + (font_height * 2), "{s}", .{font_name});
-    try renderText(sock, ids.window(), ids.gcText(), 10, 10 + (font_height * 3), "property_count={} char_info_count={}", .{
-        font_info.property_count, font_info.info_count});
+    try renderText(sock, ids.window(), ids.gcText(), 10, 10 + (font_height * 3), "property_count={} char_info_count={}", .{ font_info.property_count, font_info.info_count });
     try renderText(sock, ids.window(), ids.gcText(), 10, 10 + (font_height * 4), "The quick brown fox jumped over the lazy dog", .{});
     try renderText(sock, ids.window(), ids.gcText(), 10, 10 + (font_height * 5), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", .{});
     try renderText(sock, ids.window(), ids.gcText(), 10, 10 + (font_height * 6), "abcdefghijklmnopqrstuvwxyz", .{});
@@ -410,19 +416,19 @@ fn renderNoFontInfo(sock: std.os.socket_t, ids: Ids, fonts: []x.Slice(u8, [*]con
         x.poly_fill_rectangle.serialize(&msg, .{
             .drawable_id = ids.window(),
             .gc_id = ids.gcBackground(),
-        }, &[_]x.Rectangle {
+        }, &[_]x.Rectangle{
             .{ .x = 0, .y = 0, .width = window_width, .height = window_height },
         });
         try common.send(sock, &msg);
     }
 
-//    {
-//        var msg_buf: [x.change_gc.max_len]u8 = undefined;
-//        const len = x.change_gc.serialize(&msg_buf, ids.gcText(), .{
-//            .font = ids.font(),
-//        });
-//        try common.send(sock, msg_buf[0..len]);
-//    }
+    //    {
+    //        var msg_buf: [x.change_gc.max_len]u8 = undefined;
+    //        const len = x.change_gc.serialize(&msg_buf, ids.gcText(), .{
+    //            .font = ids.font(),
+    //        });
+    //        try common.send(sock, msg_buf[0..len]);
+    //    }
 
     //try renderText(sock, ids.window(), ids.gcText(), 10, 30, "font {}/{}", .{font_index+1, fonts.len});
     //try renderText(sock, ids.window(), ids.gcText(), 10, 60, "{s}", .{font_name});
@@ -433,16 +439,17 @@ fn renderText(sock: std.os.socket_t, drawable_id: u32, gc_id: u32, x_coord: i16,
     const str_len_u64 = std.fmt.count(fmt, args);
     const str_len = std.math.cast(u8, str_len_u64) orelse
         std.debug.panic("render large string {} not implemented", .{str_len_u64});
-    
+
     const msg_len = x.image_text8.getLen(str_len);
     const msg = try allocator.alloc(u8, msg_len);
     defer allocator.free(msg);
     x.image_text8.serializeNoTextCopy(msg.ptr, str_len, .{
         .drawable_id = drawable_id,
         .gc_id = gc_id,
-        .x = x_coord, .y = y,
+        .x = x_coord,
+        .y = y,
     });
-    const final_len = (std.fmt.bufPrint((msg.ptr + x.image_text8.text_offset)[0 .. str_len], fmt, args) catch unreachable).len;
+    const final_len = (std.fmt.bufPrint((msg.ptr + x.image_text8.text_offset)[0..str_len], fmt, args) catch unreachable).len;
     std.debug.assert(final_len == str_len);
     try common.send(sock, msg);
 }

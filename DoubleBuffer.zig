@@ -61,7 +61,7 @@ pub fn init(half_len: usize, opt: InitOptions) !DoubleBuffer {
                 break :blk std.fmt.bufPrintZ(
                     &unique_name_buf,
                     "{}",
-                    .{ std.fmt.fmtSliceHexLower(&rand_bytes) },
+                    .{std.fmt.fmtSliceHexLower(&rand_bytes)},
                 ) catch unreachable;
             };
             std.debug.assert(unique_name.len + 1 == unique_name_buf.len);
@@ -71,7 +71,7 @@ pub fn init(half_len: usize, opt: InitOptions) !DoubleBuffer {
                 std.os.O.RDWR | std.os.O.CREAT | std.os.O.EXCL,
                 std.os.S.IRUSR | std.os.S.IWUSR,
             );
-            if (fd == -1) switch (@intToEnum(std.os.E, std.c._errno().*)) {
+            if (fd == -1) switch (@as(std.os.E, @enumFromInt(std.c._errno().*))) {
                 .EXIST => return error.PathAlreadyExists,
                 .NAMETOOLONG => return error.NameTooLong,
                 else => |err| return std.os.unexpectedErrno(err),
@@ -86,15 +86,17 @@ pub fn init(half_len: usize, opt: InitOptions) !DoubleBuffer {
         },
         .windows => {
             const full_len = half_len * 2;
-            var ptr = @alignCast(std.mem.page_size, @ptrCast([*]u8, win32.VirtualAlloc2FromApp(
-                null, null,
+            var ptr: [*]align(4096) u8 = @alignCast(@as([*]u8, @ptrCast(win32.VirtualAlloc2FromApp(
+                null,
+                null,
                 full_len,
                 win32.MEM_RESERVE | win32.MEM_RESERVE_PLACEHOLDER,
                 win32.PAGE_NOACCESS,
-                null, 0,
+                null,
+                0,
             ) orelse switch (win32.GetLastError()) {
                 else => |err| return std.os.windows.unexpectedError(err),
-            }));
+            })));
 
             var free_ptr = true;
             defer if (free_ptr) {
@@ -117,8 +119,8 @@ pub fn init(half_len: usize, opt: InitOptions) !DoubleBuffer {
                 std.os.windows.INVALID_HANDLE_VALUE,
                 null,
                 win32.PAGE_READWRITE,
-                @intCast(u32, (half_len >> 32)),
-                @intCast(u32, (half_len >>  0) & std.math.maxInt(u32)),
+                @as(u32, @intCast((half_len >> 32))),
+                @as(u32, @intCast((half_len >> 0) & std.math.maxInt(u32))),
                 null,
             ) orelse switch (win32.GetLastError()) {
                 else => |err| return std.os.windows.unexpectedError(err),
@@ -133,7 +135,8 @@ pub fn init(half_len: usize, opt: InitOptions) !DoubleBuffer {
                 half_len,
                 win32.MEM_REPLACE_PLACEHOLDER,
                 win32.PAGE_READWRITE,
-                null, 0,
+                null,
+                0,
             ) orelse switch (win32.GetLastError()) {
                 else => |err| return std.os.windows.unexpectedError(err),
             };
@@ -149,7 +152,8 @@ pub fn init(half_len: usize, opt: InitOptions) !DoubleBuffer {
                 half_len,
                 win32.MEM_REPLACE_PLACEHOLDER,
                 win32.PAGE_READWRITE,
-                null, 0,
+                null,
+                0,
             ) orelse switch (win32.GetLastError()) {
                 else => |err| return std.os.windows.unexpectedError(err),
             };
@@ -186,15 +190,12 @@ pub fn contiguousReadBuffer(self: DoubleBuffer) ContiguousReadBuffer {
     };
 }
 
-
 pub fn mapFdDouble(fd: os.fd_t, half_size: usize) ![*]align(std.mem.page_size) u8 {
     std.debug.assert((half_size % std.mem.page_size) == 0);
     try os.ftruncate(fd, half_size);
     const ptr = (try os.mmap(null, 2 * half_size, os.PROT.NONE, os.MAP.PRIVATE | os.MAP.ANONYMOUS, -1, 0)).ptr;
-    _ = try os.mmap(ptr,
-        half_size, os.PROT.READ | os.PROT.WRITE, os.MAP.SHARED | os.MAP.FIXED, fd, 0);
-    _ = try os.mmap(@alignCast(std.mem.page_size, ptr + half_size),
-        half_size, os.PROT.READ | os.PROT.WRITE, os.MAP.SHARED | os.MAP.FIXED, fd, 0);
+    _ = try os.mmap(ptr, half_size, os.PROT.READ | os.PROT.WRITE, os.MAP.SHARED | os.MAP.FIXED, fd, 0);
+    _ = try os.mmap(@alignCast(ptr + half_size), half_size, os.PROT.READ | os.PROT.WRITE, os.MAP.SHARED | os.MAP.FIXED, fd, 0);
     return ptr;
 }
 
@@ -213,13 +214,13 @@ const win32 = struct {
         lpName: ?[*:0]const u16,
     ) callconv(@import("std").os.windows.WINAPI) ?HANDLE;
     pub const MEM_PRESERVE_PLACEHOLDER = 0x00002;
-    pub const MEM_COMMIT               = 0x01000;
-    pub const MEM_RESERVE              = 0x02000;
-    pub const MEM_REPLACE_PLACEHOLDER  = 0x04000;
-    pub const MEM_RELEASE              = 0x08000;
-    pub const MEM_FREE                 = 0x10000;
-    pub const MEM_RESERVE_PLACEHOLDER  = 0x40000;
-    pub const MEM_RESET                = 0x80000;
+    pub const MEM_COMMIT = 0x01000;
+    pub const MEM_RESERVE = 0x02000;
+    pub const MEM_REPLACE_PLACEHOLDER = 0x04000;
+    pub const MEM_RELEASE = 0x08000;
+    pub const MEM_FREE = 0x10000;
+    pub const MEM_RESERVE_PLACEHOLDER = 0x40000;
+    pub const MEM_RESET = 0x80000;
     pub extern "api-ms-win-core-memory-l1-1-6" fn VirtualAlloc2FromApp(
         Process: ?HANDLE,
         BaseAddress: ?*anyopaque,

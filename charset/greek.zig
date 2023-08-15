@@ -73,9 +73,9 @@ pub const Greek = enum(u8) {
     omega = 249,
 
     pub fn toCombined(self: Greek) Combined {
-        return @intToEnum(Combined, (@as(u16, 7) << 8) | @enumToInt(self));
+        return @as(Combined, @enumFromInt((@as(u16, 7) << 8) | @intFromEnum(self)));
     }
     pub fn next(self: Greek) Greek {
-        return @intToEnum(Greek, @enumToInt(self) + 1);
+        return @as(Greek, @enumFromInt(@intFromEnum(self) + 1));
     }
 };
